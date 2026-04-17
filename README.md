@@ -4,7 +4,7 @@ This is a [Jupyter](http://jupyter.org/) kernel for the [Kap](https://kapdemo.dh
 
 ## Do you have any pre-made notebook documents?
 
-Added a couple of demo notebooks to the [notebooks](https://github.com/kapitaali/kap_kernel/notebooks) directory.
+Added a couple of demo notebooks to the [notebooks](https://github.com/kapitaali/kap_kernel/tree/main/notebooks) directory.
 
 ## Installation
 
