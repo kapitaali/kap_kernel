@@ -1,0 +1,355 @@
+namespace("o3")
+
+⍝ Configuration options:
+
+⍝ Any string longer than a+b will be truncated by including the first a characters,
+⍝ followed by "[...]" and finally the last b characters.
+maxStringLength ← 100 15
+
+formatInt ⇐ { throw "Forward declaration" }
+
+isArray ⇐ 'kap:array≡typeof
+isChar ⇐ 'kap:char≡typeof
+isSymbol ⇐ 'kap:symbol≡typeof
+
+isNumber ⇐ { (typeof ⍵) ∊ 'kap:integer 'kap:float 'kap:complex 'kap:rational }
+
+⍝ Replace 0 with a space in the input array
+zSpc ⇐ { (0≡¨⍵) % ⍵ @\s }
+
+∇ isEnclosedArray {
+  0=≢⍴⍵ and ⍵≢⊃⍵
+}
+
+∇ toHex {
+  "0123456789ABCDEF" ⊇⍨ { ⍵ ⫽⍨ {,1}⍢(¯1↑) ~×\0=⍵ } (6 ⍴ 16) ⊤ ⍵
+}
+
+∇ (params) renderChar ch {
+  n ← ch-@\0
+  ch ← if ((n ≥ 33 and n ≤ 126) and n ≠ 92) {
+    @@ , ch
+  } else {
+    "@\\u" , toHex n
+  }
+  <ch
+}
+
+stringReplacements ← {(⍵+@\0) (⍵+@\u2400)} ↓⍢(10↓) ⍳0x20
+
+replaceChars ⇐ {
+  ((↑stringReplacements)⍳⍵) % (↑↓stringReplacements),⊂⍵
+}
+
+renderString ⇐ {
+  s ← ⍵
+  adjusted ← if ((+/maxStringLength)≥≢s) { s } else { ((↑maxStringLength)↑s) , "[...]" , ((-↑↓maxStringLength)↑s) }
+  res ← zSpc ⊃ (@\n≠)⍛⊂ @",(replaceChars adjusted),@"
+  ⍝ Assign information about the underlying string to the top-left corner of the string.
+  ⍝ The display function in the UI can use this information to allow the user to see
+  ⍝ the whole string by selecting it in some way.
+  if (:metadata ∊ ⍺) {
+    {<< (↑⍵ ; :data (⍴ res) s)}⍢(1 1↑) res
+  } else {
+    res
+  }
+}
+
+∇ (params) renderNumber (n) {
+  <⍕n
+}
+
+∇ (params) renderRationalWithFractionSlash (v) {
+  < (⍕math:numerator v),@\u2044,(⍕math:denominator v)
+}
+
+∇ (params) renderRationalAsDecimal (v) {
+  (s exact) ← 8 int:formatRational v
+  < ((~exact)/@\u2248),s,@r
+}
+
+∇ (params) renderSymbol (sym) {
+  <⍕sym
+}
+
+∇ alignCells v {
+  colWidths ← ⌈⌿ (↑↓⍴)¨ v
+  rowHeights ← ⌈/ ≢¨ v
+  ⍝ Pad each cell with spaces to align the sizes
+  (rowHeights ,⌻ -1+colWidths) (zSpc↑)¨ v
+}
+
+trimVert ⇐ {
+  vertSizes ← ¯1↓⍴⍵
+  arrayMaxHeight ← ↑↓sysparam 'kap:rendererParameters
+  h ← +/arrayMaxHeight
+  ⍝ Compute the dimension where splitting may be needed.
+  d ← 2+/ h > ×\⍢⌽vertSizes,1
+  ⍝ d is now an array where each value represents how to treat the corresponding
+  ⍝ axis. The possible values are:
+  ⍝   0 - keep the first and last row
+  ⍝   1 - keep the number of rows from arrayMaxHeight
+  ⍝   2 - keep the axis unchanged
+  {
+    src ← ⍺
+    (axis mode) ← ⍵
+    when {
+      (mode≡0) { if (vertSizes[axis] = 1) { src } else { (1↑[axis] src) ,[axis] ¯1↑[axis] src } }
+      (mode≡1) { if (vertSizes[axis] ≤ h) { src } else { (arrayMaxHeight[0]↑[axis] src) ,[axis] (-arrayMaxHeight[1])↑[axis] src } }
+      (mode≡2) { src }
+      (1)      { throw "Invalid mode: " mode }
+    }
+  }/ (⊂⍵),(⍳≢d),¨d
+}
+
+trimHoriz ⇐ {
+  ⍝ If the width of ⍵ is wider than can possibly fit
+  ⍝ in a reasonable amount of screen space (as defined by arrayMaxWidth),
+  ⍝ remove the middle part.
+  ⍝ Later, the middle will be trimmed and replaced with periods anyway.
+  ⍝ Finally, call trimVert to perform a similar action on the
+  ⍝ remaining dimensions.
+  ⍝
+  ⍝ ⍺ is the minimum width of a single column. For regular arrays, this
+  ⍝ is usually 2 (one character for the cell content and one for the space
+  ⍝ between cells). For character arrays, this is 1.
+  arrayMaxWidth ← ↑sysparam 'kap:rendererParameters
+  if ((↑⌽⍴⍵) > (+/arrayMaxWidth)÷2) {
+    ((⌈arrayMaxWidth[0]÷⍺)↑[¯1+≢⍴⍵])«,»((-⌈arrayMaxWidth[1]÷⍺)↑[¯1+≢⍴⍵]) ⍵
+  } else {
+    ⍵
+  }
+}
+
+renderArray ⇐ {
+  isChars ← int:isKapMultidimensionalString ⍵
+
+  hasColLabels ← (¯1+≢⍴⍵) int:hasLabels ⍵
+
+  if (isChars and 1=≢⍴⍵) {
+    ⍺ renderString ⍵
+  } else {
+    (header f d) ← if (~hasColLabels and isChars) {
+      trimmed0 ← (1 trimHoriz) trimVert ⍵
+      fRes0 ← (⊂⍤2) ((¯1,¯2↑1,⍴trimmed0) ⍴ trimmed0) , @│
+      ⍬ fRes0 (⍴trimmed0)
+    } else {
+      trimmed1 ← (2 trimHoriz) trimVert ⍵
+      d ← ⍴trimmed1
+
+      labelsResult ← labels trimmed1
+      colLabels ← < <¨ labelsResult
+
+      v0 ← (⊂⍺) formatInt¨ trimmed1
+      ⍝ The top row contains the header (which may be discarded later), and the remaining
+      ⍝ rows contains the content of the the array. Split these out into their own variables.
+      (headerRes aligned) ← (1↑)«,⍥⊂»(1 0↓) alignCells colLabels ⍪ ¯1 (↑⌽d) ⍴ v0
+
+      ⍝ Concatenate the cells, add the right border and drop the leading space
+      fRes1 ← (⍪/,/(¯1,(¯2↑1,d)) ⍴ aligned) (0 1↓,)¨ @│
+
+      headerRes fRes1 (⍴trimmed1)
+    }
+
+    w ← ↑↓⍴↑f
+
+    top ← if (hasColLabels) {
+      headerTop ← (¯1↓ ↑ ,/ {((¯1+↑↓⍴⍵) ⍴ @─) , @┬}¨ header) , @┐
+      headerCentre ← ↑ ,/ {(0 1 ↓ ⍵) , @│}¨ header
+      headerBottom ← ("→" , 1↓  ¯1↓ ↑ ,/ {((¯1+↑↓⍴⍵) ⍴ @─) , @┴}¨ header) , @┤
+      q ← headerTop ⍪ headerCentre ⍪ headerBottom
+    } else {
+      < "→" , ((w-2) ⍴ @─) ,"┐"
+    }
+    bottom ← < ((w-1) ⍴ @─) ,"┘"
+    separator ← < "→" , ((w-2) ⍴ @─) , "┤"
+    res ← {top⍪⍵⍪bottom} ↑ ⍪⌿⍪ ¯1↓ , f ,[0.5] ⊂separator
+
+    ⍝ To draw the layers to the left, first determine the number of layers and their sizes.
+    ds ← ¯2↓d
+
+    ⍝ Compute the number of layer indicators for each layer
+    layerPos ← ⌽1,×\ds
+
+    makeVerticalLayer ⇐ {
+      ⍝ Split content in groups of size ⍵, and compute height of each group
+      sizes ← +/≢¨ ¯1 ⍵ ⍴ f
+      ⍝ Create a sequence of vertical bars according to the sizes,
+      ⍝ and end with a split symbol. Finally remove the last instance.
+      coverage ← ⍵-1
+      vertArrow ← ⍺ ⌷ "│↓"
+      centre ← ¯1↓,/ {( vertArrow , (⍵+coverage-1) ⍴ @│) , @├}¨ sizes
+      ⍪ ,/ @┌ , centre , @└
+    }
+
+    verticalAxisIndicator ← ((0⌈¯1+≢layerPos) ⍴ 0) , (1 ≠ ≢d)
+    cornerContent ← if (hasColLabels) {
+      ((¯1+≢top) (¯1+≢layerPos) ⍴ @\s) , ⍪ @┌,(¯2+≢top) ⍴ @│
+    } else {
+      0 (≢layerPos) ⍴ @\s
+    }
+    (cornerContent ⍪ {<<hasColLabels⌷"┌├"}⍢(1 ¯1↑) (,/ verticalAxisIndicator makeVerticalLayer¨ layerPos)) , res
+  }
+}
+
+singleLineSyms ← "┌┐└┘─│"
+doubleLineSyms ← "╔╗╚╝═║"
+
+withBorder ⇐ {
+  nCols ← ↑↓⍴⍵
+  (1 nCols 1 ⫽ 0 4 1 ⊇ ⍺) ⍪ (⍺[5] , ⍵ , ⍺[5]) ⍪ (1 nCols 1 ⫽ 2 4 3 ⊇ ⍺)
+}
+
+∇ withBorderAndTitle (a ; header ; syms) {
+  width ← (≢header) ⌈ (↑↓⍴a)
+  top ← syms[0] , header , ((width-≢header) ⍴ syms[4]) , syms[1]
+  middle ← syms[5] , (zSpc (≢a) width ↑ a) , syms[5]
+  bottom ← syms[2] , (width ⍴ syms[4]) , syms[3]
+  top ⍪ middle ⍪ bottom
+}
+
+renderEmpty ⇐ {
+  2 3 ⍴ "┌⊖┐└─┘"
+}
+
+renderArrayOrString ⇐ {
+  v←⍵
+  params←⍺
+  when {
+    ((,0)≡⍴v)            { < "⍬" }
+    (0=×/⍴v)             { renderEmpty v }
+    (isEnclosedArray v)  { singleLineSyms withBorder params formatInt ⊃v }
+    (1)                  { params renderArray v }
+  }
+}
+
+renderEmptyMap ⇐ {
+  2 8 ⍴ "┌Map: 0┐└──────┘"
+}
+
+renderMap ⇐ {
+  keys ← ∧map:keys ⍵
+  vals ← if (0=≢keys) {
+    <"⍬"
+  } else {
+    arrayMaxHeight ← ↑↓sysparam 'kap:rendererParameters
+    h ← +/arrayMaxHeight
+    trimmedKeys ← if (h ≥ ≢keys) { keys } else { ((↑arrayMaxHeight)↑keys) , (-↑↓arrayMaxHeight)↑keys }
+    0 1 ↓ ⊃⍪/,/ alignCells (⊂⍺) formatInt¨ (⍪trimmedKeys) , ⍵[trimmedKeys]
+  }
+  withBorderAndTitle (vals ; "Map: ",⍕≢map:keys ⍵ ; singleLineSyms)
+}
+
+renderList ⇐ {
+  list ← fromList ⍵
+  if (0=≢list) {
+    2 3 ⍴ "╔⊖╗╚═╝"
+  } else {
+    aligned ← { (0 1↓)¨ alignCells ¯1 (↑⌽⍴⍵) ⍴ ⍵ } (⊂⍺) formatInt¨ list
+    ⍝ Height of the first cell (all cells have the same height)
+    h ← ↑⍴↑aligned
+    withSeparators ← @║ , (,/ ¯1↓ , (⍉aligned) , ⊂⍪ h ⍴ @│) , @║
+    top ← @╔ , (,/ ¯1↓ ,(⍉ (@═ ⍴⍨ ↑⌽⍴)¨ aligned) , @╤) , @╗
+    bottom ← @╚ , (,/ ¯1↓ ,(⍉ (@═ ⍴⍨ ↑⌽⍴)¨ aligned) , @╧) , @╝
+    top ⍪ withSeparators ⍪ bottom
+  }
+}
+
+renderTimestamp ⇐ {
+  < time:format ⍵
+}
+
+renderNil ⇐ {
+  < "null"
+}
+
+typeToFormatter ← map:with `
+        'kap:integer   λrenderNumber `
+        'kap:float     λrenderNumber `
+        'kap:complex   λrenderNumber `
+        'kap:rational  λrenderNumber `
+        'kap:array     λrenderArrayOrString `
+        'kap:char      λrenderChar `
+        'kap:symbol    λrenderSymbol `
+        'kap:map       λrenderMap `
+        'kap:list      λrenderList `
+        'kap:timestamp λrenderTimestamp `
+        'kap:null      λrenderNil
+
+cutVerticalResult ⇐ {
+  m ← :metadata ∊ ⍺
+  arrayMaxHeight ← ↑↓sysparam 'kap:rendererParameters
+  (startRowIndex endRowIndex) ← arrayMaxHeight
+  dimensions ← ⍴⍵
+  if ((+/arrayMaxHeight) < ↑⍴⍵) {
+    { if (m) {
+        { ⍵ ; :vclip 1 (↑↓dimensions) }⍢((⊂ startRowIndex 0)⊇) ⍵
+      } else {
+        ⍵
+      }
+    } (startRowIndex↑⍵) ⍪ (1 (↑↓dimensions) ⍴ ". ") ⍪ (-endRowIndex)↑⍵
+  } else {
+    ⍵
+  }
+}
+
+cutHorizontalResult ⇐ {
+  m ← :metadata ∊ ⍺
+  arrayMaxWidth ← ↑sysparam 'kap:rendererParameters
+  (startColIndex endColIndex) ← arrayMaxWidth
+  dimensions ← ⍴⍵
+  if ((+/arrayMaxWidth) < ↑↓⍴⍵) {
+    { if (m) {
+        { ⍵ ; :hclip (↑dimensions) 5 }⍢((⊂ 0 startColIndex)⊇) ⍵
+      } else {
+        ⍵
+      }
+    } (startColIndex↑[1] ⍵) , ((↑dimensions) 5 ⍴ " ...      ") , (-endColIndex)↑[1] ⍵
+  } else {
+    ⍵
+  }
+}
+
+formatInt ⇐ {
+  v←⍵
+  renderer ← typeToFormatter[typeof v]
+  res ← ⍺ ⍞((null≡renderer) ⌷ renderer λ{<⍕⍵}) v
+
+  ⍝ If the resulting size is larger than what will fit on the screen, snip the centre and replace
+  ⍝ with continuation characters.
+  ⍺ cutVerticalResult ⍺ cutHorizontalResult res
+}
+
+formatIncludeMetadata ⇐ {
+  (,:metadata) formatInt ⍵
+}
+
+format ⇐ {
+  ⍬ formatInt ⍵
+}
+
+ratmodeCmd ⇐ {
+  ⍵≢⍬ or throw "Argument must be the prefix of one of the following options: normal, fancy, decimal"
+  renderers ← λrenderNumber λrenderRationalWithFractionSlash λrenderRationalAsDecimal
+  names ← "normal" "fancy" "decimal"
+  i ← 1 ⍳⍨ (⊂⍵) (↑⍷)¨ names
+  i<≢names or throw "Invalid mode. Expected one of: normal, fancy, decimal"
+  typeToFormatter ← typeToFormatter map:with 'kap:rational renderers[i]
+  io:println "Rational print mode changed to: ",names[i]
+}
+
+int:registerCmd ("ratmode" ; "Select how to display rational numbers (normal, fancy, decimal)" ; λratmodeCmd)
+
+'kap:renderer sysparam λformatIncludeMetadata
+
+⍝ Simple debug function. It should probably be in a different package (perhaps 'debug'?)
+∇ (prefix) show (x) {
+  x ← x
+  if (isLocallyBound('prefix)) {
+    io:println prefix
+  }
+  io:print o3:format x
+  x
+}
+
+declare(:export show)

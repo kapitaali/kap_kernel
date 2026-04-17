@@ -1,0 +1,10 @@
+abi_version=2.4.0
+builtins_platform=NATIVE
+compiler_version=2.4.0-Beta1
+depends=array.contrib\:cryptography array.contrib\:ffi-mod array.contrib\:ffi-mod-cinterop-libffi array.contrib\:raylib-module array.contrib\:sdl-module array.contrib\:sdl-module-cinterop-sdl array.contrib\:valkey array\:array array\:array-cinterop-icu array\:array-cinterop-jansson array\:array-cinterop-libcurl array\:array-cinterop-linux_funcs array\:kap-util array\:mpbignum array\:mpbignum-cinterop-gmp array\:mpmaths array\:text-client-cinterop-alsa array\:text-client-cinterop-libedit array\:text-client-cinterop-ncurses co.touchlab\:stately-concurrency co.touchlab\:stately-strict com.fleeksoft.charset\:charset com.fleeksoft.io\:io-core com.fleeksoft.ksoup\:ksoup dev.whyoleg.cryptography\:cryptography-bigint dev.whyoleg.cryptography\:cryptography-core dev.whyoleg.cryptography\:cryptography-provider-base dev.whyoleg.cryptography\:cryptography-provider-openssl3-api dev.whyoleg.cryptography\:cryptography-provider-openssl3-api-cinterop-declarations dev.whyoleg.cryptography\:cryptography-provider-openssl3-shared dev.whyoleg.cryptography\:cryptography-provider-openssl3-shared-cinterop-linking dev.whyoleg.cryptography\:cryptography-random dev.whyoleg.cryptography\:cryptography-serialization-asn1 dev.whyoleg.cryptography\:cryptography-serialization-asn1-modules dev.whyoleg.cryptography\:cryptography-serialization-pem org.jetbrains.kotlin.native.platform.posix org.jetbrains.kotlinx\:atomicfu org.jetbrains.kotlinx\:atomicfu-cinterop-interop org.jetbrains.kotlinx\:kotlinx-collections-immutable org.jetbrains.kotlinx\:kotlinx-coroutines-core org.jetbrains.kotlinx\:kotlinx-datetime org.jetbrains.kotlinx\:kotlinx-io-bytestring org.jetbrains.kotlinx\:kotlinx-io-core org.jetbrains.kotlinx\:kotlinx-serialization-core stdlib
+ir_signature_versions=1,2
+language_features=+MultiPlatformProjects
+metadata_version=2.4.0
+native_targets=linux_x64
+short_name=text-client
+unique_name=array\:text-client

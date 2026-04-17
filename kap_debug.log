@@ -1,0 +1,15 @@
+⊢ io:println "asdf"
+io:println "asdf"
+asdf
+"asdf"
+⊢ io:println "hello"
+io:println "hello"
+hello
+"hello"
+⊢ ⊣ io:println "asdf"
+⊣ io:println "asdf"
+asdf
+⊢ ⊣ io:println "hello"
+⊣ io:println "hello"
+hello
+⊢ 

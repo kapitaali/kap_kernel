@@ -1,0 +1,10 @@
+{
+ "argv": [
+  "/home/theb/miniforge3/bin/python",
+  "/home/theb/Documents/kodaus/array/kap-jupyter-kernel/kap_kernel.py",
+  "-f",
+  "{connection_file}"
+ ],
+ "display_name": "Kap",
+ "language": "kap"
+}
